@@ -4,23 +4,124 @@ output: html_notebook
 ---
 
 Install packages and open libraries as needed
-```{r}
-install.packages("tidyverse")
+```{r Install packages and libraries needed}
+# install.packages("tidyverse")
+# install.packages("RCurl") # Pull data from Github Raw version 
+# install.packages("sensitivity")
+# install.packages("ggplot2")
+# install.packages("readxl")
 library(readxl)
 library(deSolve)
 library(data.table)
-library(tidyr)
-library(tidyverse)
-library(dplyr)
 library(data.table)
-library(ODEsensitivity)
-library(plotly)
-library(lattice)
-library(latticeExtra) 
+library(ODEsensitivity)# If you want to use the s
 library(ggplot2)
+library(plotly)
+library(lattice)#Making heat maps
+library(latticeExtra) #make Heat maps
+library(ggplot2)
+library (RCurl)
 ```
 
-Insert Data for parameters. Most can be used as a guide on what to use for different scenerios. See excel files for sources. 
+Insert Data for parameters. Most can be used as a guide on what to use for different scenarios. Importing CSV files but see excel files for sources (https://github.com/copelaa/Airborne_Droplet_Transmission_CopelandThesis/tree/master/Data).
+
+CSV files hosted on github and can be manually downloaded and opened from local machine, or pulled directly from Github. 
+```{r Input Data Tables From GitHub}
+##Risk per distance (R)if D=x
+Risk_factor = "https://raw.githubusercontent.com/copelaa/Airborne_Droplet_Transmission_CopelandThesis/master/Data/Room%20Info.csv"
+
+Risk_factor <- read.csv(Risk_factor)
+
+##Quanta of virus (q)
+Virus_Quanta = "https://raw.githubusercontent.com/copelaa/Airborne_Droplet_Transmission_CopelandThesis/master/Data/Virus%20Quanta.csv"
+
+Virus_Quanta=read.csv(Virus_Quanta)
+
+##Pulmonary Rate
+Pulmonary_Rate = "https://raw.githubusercontent.com/copelaa/Airborne_Droplet_Transmission_CopelandThesis/master/Data/Pulmonary%20rate.csv"
+
+Pulmonary_Rate = read.csv(Pulmonary_Rate)
+Pulmonary_Rate$p_gendermean <- rowMeans(Pulmonary_Rate[,c('Female..m3.hr.', 'Male..m3.hr.')], na.rm=TRUE)
+
+##ACH changes based on Volume and CFM per occupancy type
+Ventilation = "https://raw.githubusercontent.com/copelaa/Airborne_Droplet_Transmission_CopelandThesis/master/Data/Ventilation.csv"
+Ventilation = read.csv(Ventilation)
+```
+
+
+Build out scenarios you want to Test or compare below I will start with building out a typical **Office** Scenario. Where:
+- Typical ventilation rates are used that meet American ASHRAE Code 
+- Pulmonary rates for typical working person 21 years old - 61 years old. 
+- Quanta is currently estimated for SARS COVID 2 at 100. Other more known quanta are provided with infectious levels varying. 
+- Risk factor can be chosen as one point but depending on event we will come up with an estimate later on in chunk {r Risk Factor Estimation}. 
+```{r Office Scenerio}
+
+##OFFICE
+
+#Risk set below is is all people were the same distance from the infected source 
+Risk <- subset.data.frame(Risk_factor, D ==1.0) 
+Risk <-tibble::column_to_rownames(Risk, "D")
+Risk <- Risk$R
+
+#Same as above but using distance 
+# distance <- subset.data.frame(Risk_factor, D ==1.0) 
+# distance <-tibble::column_to_rownames(distance, "R")
+# distance <- distance$D
+# distance <-as.numeric(distance)
+
+##Quanta (q)
+q <- 100
+
+##Pulmonary rate (p)
+p <- subset.data.frame(Pulmonary_Rate, Age == "21-61" & Activity == "SEDENTARY", select = "p_gendermean")
+p <- p$p_gendermean
+p <-as.numeric(p)
+
+##ACH (a) 
+af <- 4 #Air Changes Per Hour
+af <- as.numeric(as)
+
+##Volume (V)
+Vf <- 226.53 # in meters - Open Office space 1000 sq ft 8ft ceiling height 
+Vf <- as.numeric(Vs)
+
+beta_office <-(Risk +((p*q)/(Vf*af)))           # Transmission risk at office space
+
+```
+
+Below is the Airplane scenarios parameters defined: 
+- Typical ventilation rates are used that meet American ASHRAE Code 
+- Pulmonary rates for typical working person 21 years old - 61 years old. 
+- Quanta is currently estimated for SARS COVID 2 at 100. Other more known quanta are provided with infectious levels varying. 
+- Risk factor can be chosen as one point but depending on event we will come up with an estimate later on in chunk 'Risk Factor Estimations. **Note** Distance of susceptible persons will be limited to normal Boeing 777-300ER ventilation zones (typically 7 zones in main cabin )
+```{r Plane Parameters}
+
+###Plane 
+Risk_plane<-.013 # Again using a static distance of 2.0 M or 2.5 M away from infected source
+
+##Quanta (q)
+#Same as Office 
+
+##Pulmonary rate (p)
+#Same as Office 
+
+##ACH (a)
+ap <- 15 # Based on suggested code 15-20 is standard
+ap <- as.numeric(ap)
+
+##Volume (V)# ~ 13ft (31 inches per row x 5 rows) x 19 ft. 3 in (Cabin width) x 73In Height Estimated 42.851 meter3 or 1,522ft3
+Vp<- 3.937*5.87*1.8542 #in meters
+```
+
+As mentioned previously it is not realistic that all susceptible people would be the same distance away from the infected source unless we were only looking at a small subset of persons within an enclosed space. 
+
+In order to find a more realistic risk rate, a random points that correspond with the number of susceptible people will be plotted over a grid of corresponding to the spaces dimensions (height and width)
+
+```{r Risk Factor Estimation}
+
+```
+
+Now that we have the parameters indicated for the scenarios we want to test we will find the preliminary beta coefficients 
 ```{r}
 
 ```
