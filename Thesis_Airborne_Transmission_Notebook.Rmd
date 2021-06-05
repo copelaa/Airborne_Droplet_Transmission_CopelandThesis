@@ -10,6 +10,7 @@ Install packages and open libraries as needed
 # install.packages("sensitivity")
 # install.packages("ggplot2")
 # install.packages("readxl")
+# install.packages("reshape2")
 library(readxl)
 library(deSolve)
 library(data.table)
@@ -21,6 +22,7 @@ library(lattice)#Making heat maps
 library(latticeExtra) #make Heat maps
 library(ggplot2)
 library (RCurl)
+library (reshape2)
 ```
 
 Insert Data for parameters. Most can be used as a guide on what to use for different scenarios. Importing CSV files but see excel files for sources (https://github.com/copelaa/Airborne_Droplet_Transmission_CopelandThesis/tree/master/Data).
@@ -60,7 +62,8 @@ Build out scenarios you want to Test or compare below I will start with building
 
 #Risk set below is is all people were the same distance from the infected source 
 Risk <- subset.data.frame(Risk_factor, D ==1.0) 
-Risk <-tibble::column_to_rownames(Risk, "D")
+rownames(Risk)=NULL
+Risk <- tibble::column_to_rownames(Risk, "D")
 Risk <- Risk$R
 
 #Same as above but using distance 
@@ -79,11 +82,11 @@ p <-as.numeric(p)
 
 ##ACH (a) 
 af <- 4 #Air Changes Per Hour
-af <- as.numeric(as)
+af <- as.numeric(af)
 
 ##Volume (V)
 Vf <- 226.53 # in meters - Open Office space 1000 sq ft 8ft ceiling height 
-Vf <- as.numeric(Vs)
+Vf <- as.numeric(Vf)
 
 beta_office <-(Risk +((p*q)/(Vf*af)))           # Transmission risk at office space
 
@@ -117,8 +120,94 @@ As mentioned previously it is not realistic that all susceptible people would be
 
 In order to find a more realistic risk rate, a random points that correspond with the number of susceptible people will be plotted over a grid of corresponding to the spaces dimensions (height and width)
 
-```{r Risk Factor Estimation}
+First Create a function to calculate Risk Based on Distance from Index source:
+```{r Calculate Risk based as a function of Distance}
+calcRisk <- function(distance){
+  if (distance < 1){
+    risk <- 0.13
+  } else if (distance < 2) {
+    risk <- 0.026}
+    else {risk <- 0.026/2^(as.integer(distance-1))}
+  return(risk)
+}
+```
+Random Cumulative Risk in Office
+```{r}
+iterations <- 10000
+mean_distances_office <-rep(0, iterations)
+for(i in 1:iterations){
+set.seed(i)
+{
+  min_x <- 0
+  max_x_office <- 10
+  min_y <- 0
+  max_y_office<- 10
+  x_step <- 0.3
+  y_step <- 0.3
+  x_range <- seq(min_x, max_x_office, x_step)
+  y_range <- seq(min_y, max_y_office, y_step)
+  num_points_office <- 20 #Number of Susceptible 
+  xs = sample(x_range, num_points_office, replace = TRUE, prob = NULL)
+  ys = sample(y_range, num_points_office, replace = TRUE, prob = NULL)
+  
+  #Randomly plot points in office space 
+  sample_points_office <- array(c(xs, ys), dim = c(num_points_office, 2))
+  
+  Distance_infected_source <- sweep(sample_points_office[1:20,1:2],2,sample_points_office[1,1:2])#Finding points distance from Random infected source location (1st point indicated in sample_point_office dataframe)
+  mean_distance_office = mean(rowSums(Distance_infected_source^2)^0.5)
+  
+  mean_distances_office[i] <- mean_distance_office
+}
+}
 
+ggplot(as.data.frame(sample_points_office), aes(x=xs, y=ys)) +
+  
+  geom_point(size=2, shape=23, col='red') #Plot Location of People
+
+#Find Risk associated with Distance
+Cumalitve_risk_office<- as.numeric(lapply(mean_distances_office], calcRisk))
+Cumalitve_risk_office<- sum(Cumalitve_risk_office)/20
+Cumalitve_distance_office<- mean(sample_points_df_school$distance_from_index)
+```
+
+Random Cumulative Risk in Plane
+```{r Risk Factor Estimation - Plane}
+## Random points in a grid
+
+set.seed(123)#To get same points and results every time you run it
+{
+min_x <- 0
+max_x_plane <- 4 #Length in M
+min_y <- 0
+max_y_plane <- 6 #Width in M
+x_step <- 0.3
+y_step <- 0.3
+x_range <- seq(min_x, max_x_plane, x_step)
+y_range <- seq(min_y, max_y_plane, y_step)
+num_points_plane <- 10 #Number of Susceptible people
+xp = sample(x_range, num_points_plane, replace = TRUE, prob = NULL)
+yp = sample(y_range, num_points_plane, replace = TRUE, prob = NULL)
+sample_points_plane <- array(c(xp, yp), dim = c(num_points_plane, 2))}
+ggplot(as.data.frame(sample_points_plane), aes(x=xp, y=yp)) +
+  
+  geom_point(size=2, shape=23, col='red')
+
+#Get points in dataframe and calculate corresponding Risk 
+xp<- melt(xp, c('X'))
+yp<- melt(yp,c('Y'))
+id_plane<- seq(1:nrow(yp))
+yp<- cbind(id_plane=id_plane, yp)
+xp<- cbind(id_plane=id_plane, xp)
+sample_points_df_plane<- merge.data.frame(xp,yp, by= "id_plane")
+
+distance_Risk_random_plane<- sqrt((sample_points_df_plane$value.x)^2 + (sample_points_df_plane$value.y)^2) #Finding points distance from index point 
+sample_points_df_plane$distance_from_index <- distance_Risk_random_plane #Create new Dataframe of just distance from Index case
+
+Cumalitve_risk_plane<- as.numeric(lapply(sample_points_df_plane[ ,4], calcRisk))  #Find Risk for each point 
+Cumalitve_risk_plane<- sum(Cumalitve_risk_plane)/10 #Average Risks 
+Cumalitve_distance_plane<- mean(sample_points_df_plane$distance_from_index)#Average Distances for points
+
+Risk_plane = Cumalitve_risk_plane # Reassign the static risk measure to the cumplative risk for all susceptible persons 
 ```
 
 Now that we have the parameters indicated for the scenarios we want to test we will find the preliminary beta coefficients 
