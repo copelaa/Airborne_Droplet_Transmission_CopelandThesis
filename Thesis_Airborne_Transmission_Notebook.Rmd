@@ -1,0 +1,27 @@
+---
+title: "Thesis_Airborne_Transmission"
+output: html_notebook
+---
+
+Install packages and open libraries as needed
+```{r}
+install.packages("tidyverse")
+library(readxl)
+library(deSolve)
+library(data.table)
+library(tidyr)
+library(tidyverse)
+library(dplyr)
+library(data.table)
+library(ODEsensitivity)
+library(plotly)
+library(lattice)
+library(latticeExtra) 
+library(ggplot2)
+```
+
+Insert Data for parameters. Most can be used as a guide on what to use for different scenerios. See excel files for sources. 
+```{r}
+
+```
+
