@@ -1,0 +1,7 @@
+Parameter,Virus,Low Quanta,Medium Quanta,High Quanta,LL (-75%),UL (+75%),SD
+qm,Quanta for measles virus,106,124,480,31,217,143
+qs,Quanta for SARS coronavirus,11.4,28.94,295.5,7.23,50.65,
+qI,Quanta for influenza virus,15,76.18,128,19,133.32,25
+qt,Quanta for Mycobacterium tuberculosis,1.27,8.2,12.7,2.05,14.35,3
+qp,Quanta for Legionella pneumophila,5.45,8.39,11.32,2.1,14.68,
+qR,Quanta for Rhinovirus 16,1,-,10,,,
