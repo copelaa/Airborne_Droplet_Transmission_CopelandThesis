@@ -85,7 +85,7 @@ af <- 4 #Air Changes Per Hour
 af <- as.numeric(af)
 
 ##Volume (V)
-Vf <- 226.53 # in meters - Open Office space 1000 sq ft 8ft ceiling height 
+Vf <- 226.53 # in meters - Open Office space 1000 sq ft(93m) 8ft (2.43m) ceiling height 
 Vf <- as.numeric(Vf)
 
 beta_office <-(Risk +((p*q)/(Vf*af)))           # Transmission risk at office space
@@ -133,10 +133,13 @@ calcRisk <- function(distance){
 ```
 Random Cumulative Risk in Office
 ```{r}
-iterations <- 10000
-mean_distances_office <-rep(0, iterations)
-for(i in 1:iterations){
-set.seed(i)
+#Following 4 lines are if you want to get the average distance of 1000 iterations and then the average risk 
+
+#iterations <- 10000
+#mean_distances_office <-rep(0, iterations)
+#for(i in 1:iterations){
+#set.seed(i)
+set.seed(123)
 {
   min_x <- 0
   max_x_office <- 10
@@ -146,18 +149,22 @@ set.seed(i)
   y_step <- 0.3
   x_range <- seq(min_x, max_x_office, x_step)
   y_range <- seq(min_y, max_y_office, y_step)
-  num_points_office <- 20 #Number of Susceptible 
+  num_points_office <- 20 #population enclosed space 
   xs = sample(x_range, num_points_office, replace = TRUE, prob = NULL)
   ys = sample(y_range, num_points_office, replace = TRUE, prob = NULL)
   
   #Randomly plot points in office space 
   sample_points_office <- array(c(xs, ys), dim = c(num_points_office, 2))
   
-  Distance_infected_source <- sweep(sample_points_office[1:20,1:2],2,sample_points_office[1,1:2])#Finding points distance from Random infected source location (1st point indicated in sample_point_office dataframe)
-  mean_distance_office = mean(rowSums(Distance_infected_source^2)^0.5)
-  
-  mean_distances_office[i] <- mean_distance_office
-}
+Distance_infected_source_office <- as.data.frame(sweep(sample_points_office[1:20,1:2],2,sample_points_office[1,1:2]))#Finding points distance from Random infected source location (1st point indicated in sample_point_office dataframe)
+  mean_distance_office = sqrt((Distance_infected_source_office$V1)^2 + (Distance_infected_source_office$V2)^2)#Find the distance of each point from infected source 
+Distance_infected_source_office$distance_from_index <- mean_distance_office #Create new Dataframe of just distance from Index case
+
+#Drop Infected source
+Distance_infected_source_office<- Distance_infected_source_office[-c(1,1:3)] 
+#If you want to find mean distance and then risk of 1000 random iterations use the below line
+
+#mean_distances_office[i] <- mean(mean_distance_office_test)}
 }
 
 ggplot(as.data.frame(sample_points_office), aes(x=xs, y=ys)) +
@@ -165,9 +172,15 @@ ggplot(as.data.frame(sample_points_office), aes(x=xs, y=ys)) +
   geom_point(size=2, shape=23, col='red') #Plot Location of People
 
 #Find Risk associated with Distance
-Cumalitve_risk_office<- as.numeric(lapply(mean_distances_office], calcRisk))
-Cumalitve_risk_office<- sum(Cumalitve_risk_office)/20
-Cumalitve_distance_office<- mean(sample_points_df_school$distance_from_index)
+Cumulitve_risk_office<- as.numeric(lapply(Distance_infected_source_office[ 2:20,3], calcRisk))
+
+Cumulative_risk_office<-Cumulitve_risk_office[-c(1,1:3 )]#Drop infected source
+
+#Add Risk to Dataframe
+Distance_infected_source_office$Risk <- Cumulitve_risk_office
+#Find cumulative risk and distance
+Cumulitve_risk_office<- sum(Cumulitve_risk_office)/19 #people in enclosed space minus infected sources
+Cumulitve_distance_office<- mean(Distance_infected_source_office$distance_from_index)
 ```
 
 Random Cumulative Risk in Plane
@@ -207,7 +220,7 @@ Cumalitve_risk_plane<- as.numeric(lapply(sample_points_df_plane[ ,4], calcRisk))
 Cumalitve_risk_plane<- sum(Cumalitve_risk_plane)/10 #Average Risks 
 Cumalitve_distance_plane<- mean(sample_points_df_plane$distance_from_index)#Average Distances for points
 
-Risk_plane = Cumalitve_risk_plane # Reassign the static risk measure to the cumplative risk for all susceptible persons 
+Risk_plane = Cumalitve_risk_plane # Reassign the static risk measure to the cumulative risk for all susceptible persons 
 ```
 
 Now that we have the parameters indicated for the scenarios we want to test we will find the preliminary beta coefficients 
