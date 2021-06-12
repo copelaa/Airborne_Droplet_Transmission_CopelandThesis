@@ -73,7 +73,7 @@ Risk <- Risk$R
 # distance <-as.numeric(distance)
 
 ##Quanta (q)
-q <- 100
+q <- 178
 
 ##Pulmonary rate (p)
 p <- subset.data.frame(Pulmonary_Rate, Age == "21-61" & Activity == "SEDENTARY", select = "p_gendermean")
@@ -99,7 +99,7 @@ Below is the Airplane scenarios parameters defined:
 - Risk factor can be chosen as one point but depending on event we will come up with an estimate later on in chunk 'Risk Factor Estimations. **Note** Distance of susceptible persons will be limited to normal Boeing 777-300ER ventilation zones (typically 7 zones in main cabin )
 ```{r Plane Parameters}
 
-###Plane 
+##PLANE
 Risk_plane<-.013 # Again using a static distance of 2.0 M or 2.5 M away from infected source
 
 ##Quanta (q)
@@ -114,6 +114,18 @@ ap <- as.numeric(ap)
 
 ##Volume (V)# ~ 13ft (31 inches per row x 5 rows) x 19 ft. 3 in (Cabin width) x 73In Height Estimated 42.851 meter3 or 1,522ft3
 Vp<- 3.937*5.87*1.8542 #in meters
+```
+
+
+```{r Additional Parameters}
+          r= 1/6 #Recover rate (gamma)
+          g= 1/4 #Transition rate from latent to infectious - 4 day (4/365 year) latent period 
+          f= (2.2/100)#Case fatality ratio
+
+            
+# Establish Time
+dt_office <- seq(0.01,1,.01) #This gives start and end times (0 to 1 day) and the time step 14.4mins (100 measurements within 24 hours) 
+dt_plane <- seq(0.005,1,.005) #This gives start and end times (0 to 1 day) and the time step 7.2 mins
 ```
 
 As mentioned previously it is not realistic that all susceptible people would be the same distance away from the infected source unless we were only looking at a small subset of persons within an enclosed space. 
@@ -131,6 +143,8 @@ calcRisk <- function(distance){
   return(risk)
 }
 ```
+
+
 Random Cumulative Risk in Office
 ```{r}
 #Following 4 lines are if you want to get the average distance of 1000 iterations and then the average risk 
@@ -139,6 +153,7 @@ Random Cumulative Risk in Office
 #mean_distances_office <-rep(0, iterations)
 #for(i in 1:iterations){
 #set.seed(i)
+
 set.seed(123)
 {
   min_x <- 0
@@ -157,74 +172,306 @@ set.seed(123)
   sample_points_office <- array(c(xs, ys), dim = c(num_points_office, 2))
   
 Distance_infected_source_office <- as.data.frame(sweep(sample_points_office[1:20,1:2],2,sample_points_office[1,1:2]))#Finding points distance from Random infected source location (1st point indicated in sample_point_office dataframe)
-  mean_distance_office = sqrt((Distance_infected_source_office$V1)^2 + (Distance_infected_source_office$V2)^2)#Find the distance of each point from infected source 
+
+mean_distance_office = sqrt((Distance_infected_source_office$V1)^2 + (Distance_infected_source_office$V2)^2)#Find the distance of each point from infected source 
+
 Distance_infected_source_office$distance_from_index <- mean_distance_office #Create new Dataframe of just distance from Index case
 
 #Drop Infected source
-Distance_infected_source_office<- Distance_infected_source_office[-c(1,1:3)] 
+Distance_infected_source_office<- Distance_infected_source_office[-c(1),] 
 #If you want to find mean distance and then risk of 1000 random iterations use the below line
 
-#mean_distances_office[i] <- mean(mean_distance_office_test)}
+#mean_distances_office[i] <- mean(mean_distance_office)}
 }
 
+#Graph random point in enclosed space
 ggplot(as.data.frame(sample_points_office), aes(x=xs, y=ys)) +
   
   geom_point(size=2, shape=23, col='red') #Plot Location of People
 
 #Find Risk associated with Distance
-Cumulitve_risk_office<- as.numeric(lapply(Distance_infected_source_office[ 2:20,3], calcRisk))
-
-Cumulative_risk_office<-Cumulitve_risk_office[-c(1,1:3 )]#Drop infected source
+Cumulative_risk_office<- as.numeric(lapply(Distance_infected_source_office[ ,3], calcRisk))
 
 #Add Risk to Dataframe
-Distance_infected_source_office$Risk <- Cumulitve_risk_office
+Distance_infected_source_office$Risk <- Cumulative_risk_office
 #Find cumulative risk and distance
-Cumulitve_risk_office<- sum(Cumulitve_risk_office)/19 #people in enclosed space minus infected sources
-Cumulitve_distance_office<- mean(Distance_infected_source_office$distance_from_index)
+Cumulative_risk_office<- sum(Cumulative_risk_office)/19 #people in enclosed space minus infected sources
+Cumulative_distance_office<- mean(Distance_infected_source_office$distance_from_index)
+
 ```
 
-Random Cumulative Risk in Plane
-```{r Risk Factor Estimation - Plane}
-## Random points in a grid
+Now that we have all the parameters defined we can create the contour plots to show how Air Changes and distance may affect transmission
 
-set.seed(123)#To get same points and results every time you run it
-{
-min_x <- 0
-max_x_plane <- 4 #Length in M
-min_y <- 0
-max_y_plane <- 6 #Width in M
-x_step <- 0.3
-y_step <- 0.3
-x_range <- seq(min_x, max_x_plane, x_step)
-y_range <- seq(min_y, max_y_plane, y_step)
-num_points_plane <- 10 #Number of Susceptible people
-xp = sample(x_range, num_points_plane, replace = TRUE, prob = NULL)
-yp = sample(y_range, num_points_plane, replace = TRUE, prob = NULL)
-sample_points_plane <- array(c(xp, yp), dim = c(num_points_plane, 2))}
-ggplot(as.data.frame(sample_points_plane), aes(x=xp, y=yp)) +
+```{r OFFICE Contour Plot - Beta}
+##Risks Beta for all controllable measures 
+## Setting range for contour plot 
+Risk_fac_Cont_office <- Risk_factor[1:10,2]
+ach_office <- c(1:10)
+Risk_fac_dist_office <- Risk_fac_dist_office <- as.numeric(rep(seq(from = .5, to = 5,by = .5), each=10))
+ 
+
+#Expand Dataframe to include all risk and distance at each ACH level (1-10)
+RiskVa_office<-expand.grid(ach_office = seq(1, 10, 1), Risk_fac_Cont_office = Risk_fac_Cont_office)
+
+##Beta using all risks
+n_office <- 100
+beta_office <- rep(1, n_office)
+for(i in 1:100) {
+  beta_office[i] <- (RiskVa_office[i,2] + ((p*q)/(Vf*RiskVa_office[i,1])))
+}
+print(beta_office)
+
+RiskVa_office$beta <- beta_office
+
+#Add distance 
+RiskVa_office$Risk_fac_dist_office<-Risk_fac_dist_office
+
+# #Reorder BASED  on Distance
+RiskVa_office$Risk_fac_dist_office <- as.numeric(as.character(RiskVa_office$Risk_fac_dist_office))
+RiskVa_office<- RiskVa_office[order(RiskVa_office$Risk_fac_dist_office),]
+
+
+## Level Plot
+x.labels <- seq(1,5,.5)
+
+ obj_office <- if (require("mgcv"))
+  levelplot(beta_office ~ Risk_fac_Cont_office * ach_office, RiskVa_office, panel = panel.2dsmoother,
+            form = z ~ s(x, y), method = "gam", n=500,
+            cuts = 10, contour=TRUE,
+            xlab = "Distance from index case (m)",
+            ylab = "Air Changes (m3/h)",
+            xlim = c(.13, 0.00325),xscale.components.default = x.labels,
+            ylim = c(1, 10),
+            main = "Beta Parameter", sub="Office")
+
+
+update(obj_office, par.settings =
+         custom.theme(region = colorspace::diverge_hsv(9),
+                      bg = "grey90", fg = "grey20", pch = 10))
+```
+
+Change Beta to R0 in Contour plot 
+```{r OFFICE Contour Plot - R0}
+
+## plot changing R0 under control (R0)Beta/gamma
+R0_office <- beta_office/(r)
+matplot(dt_office,R0_office,type='l',ylab='R0',xlab='Time (hours)',lty=1)
+abline(h=1, col="red")
+
+
+###Expand R0/   beta / time of event () - (at random distribution )
+objR0_office <- if (require("mgcv"))
+  levelplot(R0_office ~ Risk_fac_Cont_office*ach_office, RiskVa_office, panel = panel.2dsmoother,
+            form = z ~ s(x, y), method = "gam", n=500,
+            cuts = 10, contour=TRUE,
+            xlab = "Distance from index case(m)",
+            ylab = "Air Changes m3/h",
+            xlim = c(min(.13),max(0.00325)),xscale.components.default = x.labels, ylim = c(min(ach_office), max(ach_office)),
+            main = "R0 related to ACH and Distance", sub="Office")
+update(objR0_office, par.settings =
+         custom.theme(region = colorspace::diverge_hsv(9),
+                      bg = "white", fg = "grey20", pch = 10))
+```
+
+
+If you want to run a compartment model for the OFFICE: 
+```{r Office - Compartment model SEIR}
+#establish additional parameters 
+params_office<- c(bf=(Cumulative_risk_office +((p*q)/(Vf*af))), #Transmission probability
+                  r= 1/6, #Recover rate (gamma)
+                  g= 1/4, #Transition rate from latent to infectious - 4 day (4/365 year) latent period 
+                  f= (2.2/100)#Case fatality ratio
+)
+inits_office <- c(S=19,E=0, I=1, R=0) #This line gives the initial values each compartment
+SEIR_office <- function(t, x, params_office){ 
   
-  geom_point(size=2, shape=23, col='red')
+  with(as.list(c(params_office,x)),{
+    
+    
+    #Flow in and out of each compartment
+    dS <- -bf*S*I/(S+E+I+R) 
+    dE <- (bf*S*I/(S+E+I+R)) - (g*E)
+    dI <- (g*E) - (r*I) 
+    dR <- r*I 
+    
+    
+    #compartments
+    der_office <- c(dS,dE,dI,dR)
+    list(der_office) # the output must be returned
+  }) 
+}
 
-#Get points in dataframe and calculate corresponding Risk 
-xp<- melt(xp, c('X'))
-yp<- melt(yp,c('Y'))
-id_plane<- seq(1:nrow(yp))
-yp<- cbind(id_plane=id_plane, yp)
-xp<- cbind(id_plane=id_plane, xp)
-sample_points_df_plane<- merge.data.frame(xp,yp, by= "id_plane")
+#lsoda to formats the output as a data frame
+data_out_office <- as.data.frame(lsoda(inits_office, dt_office, SEIR_office, parms=params_office))
 
-distance_Risk_random_plane<- sqrt((sample_points_df_plane$value.x)^2 + (sample_points_df_plane$value.y)^2) #Finding points distance from index point 
-sample_points_df_plane$distance_from_index <- distance_Risk_random_plane #Create new Dataframe of just distance from Index case
+#This line plots all of your compartments. 
+#The syntax for matplot is (x value, y value, graphical parameters)
+#Here, x is the first column of data_out (time), y is each of columns 2 through 5 (S, E, I, and R), and saying to plot solid lines (type="l", lty=1) 
+#By default, each line plotted will be given a sequential color (S will be color 1, E color 2, etc.)
+matplot(data_out_office[,1],data_out_office[,2:5],type='l',ylab='People',xlab='Time (day)',lty=1)
 
-Cumalitve_risk_plane<- as.numeric(lapply(sample_points_df_plane[ ,4], calcRisk))  #Find Risk for each point 
-Cumalitve_risk_plane<- sum(Cumalitve_risk_plane)/10 #Average Risks 
-Cumalitve_distance_plane<- mean(sample_points_df_plane$distance_from_index)#Average Distances for points
+```
 
-Risk_plane = Cumalitve_risk_plane # Reassign the static risk measure to the cumulative risk for all susceptible persons 
+Find Cumulative Risk of persons in vicinity of infected source 
+```{r Risk Factor Estimation - Plane}
+#Following 4 lines are if you want to get the average distance of 1000 iterations and then the average risk 
+
+#iterations <- 10000
+#mean_distances_plane <-rep(0, iterations)
+#for(i in 1:iterations){
+#set.seed(i)
+
+set.seed(123)
+{
+  min_x <- 0
+  max_x_plane<- 4# Length in M
+  min_y <- 0
+  max_y_plane<- 6 #Width in M
+  x_step <- 0.3
+  y_step <- 0.3
+  x_range <- seq(min_x, max_x_plane, x_step)
+  y_range <- seq(min_y, max_y_plane, y_step)
+  num_points_plane <- 10 #population enclosed space 
+  xs = sample(x_range, num_points_plane, replace = TRUE, prob = NULL)
+  ys = sample(y_range, num_points_plane, replace = TRUE, prob = NULL)
+  
+  #Randomly plot points in office space 
+  sample_points_plane <- array(c(xs, ys), dim = c(num_points_plane, 2))
+  
+Distance_infected_source_plane <- as.data.frame(sweep(sample_points_plane[1:10,1:2],2,sample_points_plane[1,1:2]))#Finding points distance from Random infected source location (1st point indicated in sample_point_office dataframe)
+
+mean_distance_plane = sqrt((Distance_infected_source_plane$V1)^2 + (Distance_infected_source_plane$V2)^2)#Find the distance of each point from infected source 
+
+Distance_infected_source_plane$distance_from_index <- mean_distance_plane #Create new Dataframe of just distance from Index case
+
+#Drop Infected source
+Distance_infected_source_plane<- Distance_infected_source_plane[-c(1),] 
+#If you want to find mean distance and then risk of 1000 random iterations use the below line
+
+#mean_distances_plane[i] <- mean(mean_distance_plane)}
+}
+
+#Graph random point in enclosed space
+ggplot(as.data.frame(sample_points_plane), aes(x=xs, y=ys)) +
+  
+  geom_point(size=2, shape=23, col='red') #Plot Location of People
+
+#Find Risk associated with Distance
+Cumulative_risk_plane<- as.numeric(lapply(Distance_infected_source_plane[ ,3], calcRisk))
+
+#Add Risk to Dataframe
+Distance_infected_source_plane$Risk <- Cumulative_risk_plane
+#Find cumulative risk and distance
+Cumulative_risk_plane<- sum(Cumulative_risk_plane)/9 #people in enclosed space minus infected sources
+Cumulative_distance_plane<- mean(Distance_infected_source_plane$distance_from_index)
 ```
 
 Now that we have the parameters indicated for the scenarios we want to test we will find the preliminary beta coefficients 
-```{r}
+```{r Plane Contour Plot - Beta}
+##Risks Beta for all controllable measures 
+## Setting range for contour plot 
+Risk_fac_Cont_plane <- Risk_factor[1:10,2]
+ach_plane <- c(1:20)
+Risk_fac_dist_plane <- as.numeric(rep(seq(from = .5, to = 5,by = .5), each=20))
 
+
+#Expand Dataframe to include all risk and distance at each ACH level (1-10)
+RiskVa_plane<-expand.grid(ach_plane = seq(1, 20, 1), Risk_fac_Cont_plane = Risk_fac_Cont_plane)
+
+##Beta using all risks
+n_plane <- 200
+beta_plane <- rep(1, n_plane)
+for(i in 1:200) {
+  beta_plane[i] <- (RiskVa_plane[i,2] + ((p*q)/(Vf*RiskVa_plane[i,1])))
+}
+print(beta_plane)
+
+RiskVa_plane$beta <- beta_plane
+
+#Add distance 
+RiskVa_plane$Risk_fac_dist_plane<-Risk_fac_dist_plane
+
+# #Reorder BASED  on distance
+RiskVa_plane$Risk_fac_dist_plane <- as.numeric(as.character(RiskVa_plane$Risk_fac_dist_plane))
+RiskVa_plane<- RiskVa_plane[order(RiskVa_plane$Risk_fac_dist_plane),]
+
+
+## Level Plot
+x.labels <- seq(1,5,.5)
+
+ obj_plane <- if (require("mgcv"))
+  levelplot(beta_plane ~ Risk_fac_Cont_plane * ach_plane, RiskVa_plane, panel = panel.2dsmoother,
+            form = z ~ s(x, y), method = "gam", n=500,
+            cuts = 10, contour=TRUE,
+            xlab = "Distance from index case (m)",
+            ylab = "Air Changes (m3/h)",
+            xlim = c(.13, 0.00325),xscale.components.default = x.labels,
+            ylim = c(1, 20),
+            main = "Beta Parameter", sub="Plane")
+
+
+update(obj_plane, par.settings =
+         custom.theme(region = colorspace::diverge_hsv(9),
+                      bg = "grey90", fg = "grey20", pch = 10))
+```
+Change Beta to R0 in Contour plot 
+
+```{r Plane Contour Plot - R0}
+## plot changing R0 under control (R0)Beta/gamma
+R0_plane <- beta_plane/(r)
+matplot(dt_plane,R0_plane,type='l',ylab='R0',xlab='Time (hours)',lty=1)
+abline(h=1, col="red")
+
+
+###Expand R0/   beta / time of event () - (at random distribution )
+objR0_plane <- if (require("mgcv"))
+  levelplot(R0_plane ~ Risk_fac_Cont_plane*ach_plane, RiskVa_plane, panel = panel.2dsmoother,
+            form = z ~ s(x, y), method = "gam", n=500,
+            cuts = 10, contour=TRUE,
+            xlab = "Distance from index case(m)",
+            ylab = "Air Changes m3/h",
+            xlim = c(min(.13),max(0.00325)),xscale.components.default = x.labels, ylim = c(min(ach_plane), max(ach_plane)),
+            main = "R0 related to ACH and Distance", sub="Plane")
+update(objR0_plane, par.settings =
+         custom.theme(region = colorspace::diverge_hsv(9),
+                      bg = "white", fg = "grey20", pch = 10))
+```
+
+If you want to create compartment plots and data based on the altered Betas:
+```{r Plane Compartment Model SEIR}
+#Additional Parameters 
+
+params_plane<- c(bp=(Cumulative_risk_plane +((p*q)/(Vp*ap))), #Transmission probability
+                  r= 1/6, #Recover rate (gamma)
+                  g= 1/4, #Transition rate from latent to infectious - 4 day (4/365 year) latent period 
+                  f= (2.2/100)#Case fatality ratio
+)
+inits_plane <- c(S=9,E=0, I=1, R=0) #This line gives the initial values each compartment
+SEIR_plane <- function(t, x, params_plane){ 
+  
+  with(as.list(c(params_plane,x)),{
+    
+    
+    #Flow in and out of each compartment
+    dS <- -bp*S*I/(S+E+I+R) 
+    dE <- (bp*S*I/(S+E+I+R)) - (g*E)
+    dI <- (g*E) - (r*I) 
+    dR <- r*I 
+    
+    
+    #compartments
+    der_plane <- c(dS,dE,dI,dR)
+    list(der_plane) # the output must be returned
+  }) 
+}
+
+#lsoda to formats the output as a data frame
+data_out_plane <- as.data.frame(lsoda(inits_plane, dt_plane, SEIR_plane, parms=params_plane))
+
+#This line plots all of your compartments. 
+#The syntax for matplot is (x value, y value, graphical parameters)
+#Here, x is the first column of data_out (time), y is each of columns 2 through 5 (S, E, I, and R), and saying to plot solid lines (type="l", lty=1) 
+#By default, each line plotted will be given a sequential color (S will be color 1, E color 2, etc.)
+matplot(data_out_plane[,1],data_out_plane[,2:5],type='l',ylab='People',xlab='Time (day)',lty=1)
 ```
 
